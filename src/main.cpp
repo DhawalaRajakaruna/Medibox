@@ -5,6 +5,8 @@
 #include <WiFi.h>
 #include <time.h>
 #include <DHTesp.h>
+#include <pubsubclient.h>
+#include <ESP32Servo.h>
 
 #define NTP_SERVER "pool.ntp.org"
 #define UTC_OFFSET 0
@@ -23,6 +25,8 @@
 #define DOWN 32
 #define OK 33
 #define DHT 12
+#define LDR 39
+#define SERVO 4
 
 
 int n_notes =8;
@@ -43,6 +47,15 @@ int hours = 0;
 int minutes = 0;
 int seconds = 0;
 
+int tita = 0;
+int titaoffset = 30;
+float gammaVal = 0.75;
+float temp = 0;
+float tempmed = 30;
+
+int intensitycount = 0;
+float intensity = 0;
+
 bool alarm_enabled = false;
 int n_alarms = 2;
 bool enable_Alrm[] = {false,false};
@@ -54,16 +67,102 @@ bool alarm_snoozed[] = {false,false};
 
 unsigned long timeNow = 0;
 unsigned long timeLast = 0;
+unsigned long timelastmin = 0;
+
+int Ts = 5;
+int Tu = 2;
 
 int current_mode = 1;
 int max_modes = 4;
 String options[] = {"1 - Set Time","2 - Set Alarm 1","3 - Set Alrm 2","4 - View Alarms"};
-
+float cumuIntensity = 0;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 DHTesp dhtSensor;
+Servo servo;
 
-const int LED = 23;
+const char* mqtt_server = "broker.hivemq.com";
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.println("] ");
+
+  // Print the payload as characters
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  // Create a null-terminated string from payload
+  char message[length + 1];           // +1 for null terminator
+  memcpy(message, payload, length);   // Copy the payload
+  message[length] = '\0';             // Null terminate the string
+
+  // Process the topic
+  if (strcmp(topic, "Medibox/intensitySampling") == 0) {
+    Ts = atoi(message);
+    //Serial.print("Sampling Time (Ts) : ");
+    //Serial.println(Ts);
+  }
+  if (strcmp(topic, "Medibox/intensitySending") == 0) {
+    Tu = atoi(message);
+    //Serial.print("Sending Time (Tu) : ");
+    //Serial.println(Tu);
+  }
+  if (strcmp(topic, "Medibox/titaoffset") == 0) {
+    titaoffset = atoi(message);
+    //Serial.print("Tita Offset : ");
+    //Serial.println(titaoffset);
+  }
+  if (strcmp(topic, "Medibox/controlFact") == 0) {
+    gammaVal = atof(message);
+    //Serial.print("Gamma : ");
+    //Serial.println(gammaVal);
+  }
+  if (strcmp(topic, "Medibox/tempmed") == 0) {
+    tempmed = atof(message);
+    //Serial.print("Temp Med : ");
+    //Serial.println(tempmed);
+  }
+}
+
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    String clientId = "ESP32Client-";
+    clientId += String(random(0xffff), HEX);  // Unique client ID
+
+    // Attempt to connect with Last Will message
+    if (client.connect(clientId.c_str(), "Medibox/status", 0, true, "ESP32 Disconnected")) {
+      Serial.println("connected");
+
+      // Publish initial online status
+      client.publish("Medibox/status", "ESP32 Connected to MQTT", true);
+
+      // Subscribe to relevant topics
+      client.subscribe("Medibox/temperature");
+      client.subscribe("Medibox/intensity");
+      client.subscribe("Medibox/intensitySampling");
+      client.subscribe("Medibox/intensitySending");
+      client.subscribe("Medibox/titaoffset");
+      client.subscribe("Medibox/controlFact");
+      client.subscribe("Medibox/tempmed");
+
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+
+
 
 
 void print_line(String text, int text_size, int row, int column) {
@@ -77,7 +176,8 @@ void print_line(String text, int text_size, int row, int column) {
 void check_temp(){
   //Complete
   TempAndHumidity data = dhtSensor.getTempAndHumidity();
-
+  temp = data.temperature;
+  client.publish("Medibox/temperature", String(temp).c_str(), true);
   bool all_good = true;
   if(data.temperature>32){
     all_good = false;
@@ -524,7 +624,6 @@ void go_to_menu() {
 
 void setup() {
   Serial.begin(9600);
-
   pinMode(BUZZER, OUTPUT);
   pinMode(LED_1, OUTPUT);
   pinMode(LED_2, OUTPUT);
@@ -564,12 +663,83 @@ void setup() {
   delay(2000);
 
   configTime(UTC_OFFSET, UTC_OFFSET_DST, NTP_SERVER);
+
+  client.setServer(mqtt_server, 1883);  // Default MQTT port
+  client.setCallback(callback);
+  client.publish("Medibox/intensity", String(0).c_str());
+  servo.attach(SERVO);
+  servo.write(tita);
 }
 
+bool Sample_intensity(){
+  //complete
+  timeNow = millis();
+  //Serial.println("Time Now: "+String(timeNow-timeLast)+"Ts : "+String(Ts*1000));
+  if (timeNow - timeLast >= Ts*1000) {
+    timeLast = timeNow;
+    //Serial.println("Time to sample intensity");
+    return true;
+  }
+  return false;
+}
+
+bool Send_avg_intensity(){
+  //complete
+  timeNow = millis();
+  int thresholdTime = Tu*60000;
+  //Serial.println(" Time Now: "+String(timeNow-timelastmin)+" Tu : "+String(thresholdTime));
+  if (timeNow - timelastmin >= thresholdTime) {
+    timelastmin = timeNow;
+    //Serial.println("Time to send avg intensity");
+    return true;
+  }
+  return false;
+}
+
+void check_intensity(){
+  //complete
+  if(Send_avg_intensity()){
+    //display in NODE RED
+    //Serial.println("Intensity Count: "+String(intensitycount));
+    float avgIntensity = cumuIntensity/intensitycount;
+    client.publish("Medibox/intensity", String(avgIntensity,2).c_str());
+    intensitycount = 0;
+    cumuIntensity = 0;
+  }
+  if(Sample_intensity()){
+    //Serial.println("Sampling Intensity");
+    intensity = float((analogRead(LDR)-4063))/float(-4031);
+    //Serial.println("Intensity: "+String(intensity));
+    cumuIntensity += intensity;
+    intensitycount++;
+  }
+}
+void control_servo(){
+  //Complete
+  Serial.println("tita offset: "+String(titaoffset));
+  Serial.println("intensity: "+String(intensity));
+  Serial.println("temp: "+String(temp));
+  Serial.println("tempmed: "+String(tempmed));
+  Serial.println("gammaVal: "+String(gammaVal));
+  Serial.println("Ts: "+String(Ts));
+  Serial.println("Tu: "+String(Tu));
+  Serial.println("tita: "+String(tita));
+  int rawtita = titaoffset + (180 - titaoffset) *intensity*gammaVal*log(float(Ts)/float(Tu*60))*(float(temp)/float(tempmed));
+  tita = constrain(rawtita, 0, 180);
+  Serial.println("Servo Position: "+String(tita));
+  
+  servo.attach(SERVO);
+  servo.write(tita);
+}
 void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
   update_time_with_check_alarm();//cant we use a thred here
   print_time_now();
+  check_intensity();
   check_temp();
+  control_servo();
   if(enable_Alrm[0]){
     print_line("Alarm 1 ON ",1,45,60);
      }
@@ -582,4 +752,5 @@ void loop() {
     go_to_menu();
   }
   delay(20);
+  client.loop(); 
 }

@@ -102,27 +102,27 @@ void callback(char* topic, byte* payload, unsigned int length) {
   message[length] = '\0';             // Null terminate the string
 
   // Process the topic
-  if (strcmp(topic, "Medibox/intensitySampling") == 0) {
+  if (strcmp(topic, "Medibox220498D/intensitySampling") == 0) {
     Ts = atoi(message);
     //Serial.print("Sampling Time (Ts) : ");
     //Serial.println(Ts);
   }
-  if (strcmp(topic, "Medibox/intensitySending") == 0) {
+  if (strcmp(topic, "Medibox220498D/intensitySending") == 0) {
     Tu = atoi(message);
     //Serial.print("Sending Time (Tu) : ");
     //Serial.println(Tu);
   }
-  if (strcmp(topic, "Medibox/titaoffset") == 0) {
+  if (strcmp(topic, "Medibox220498D/titaoffset") == 0) {
     titaoffset = atoi(message);
     //Serial.print("Tita Offset : ");
     //Serial.println(titaoffset);
   }
-  if (strcmp(topic, "Medibox/controlFact") == 0) {
+  if (strcmp(topic, "Medibox220498D/controlFact") == 0) {
     gammaVal = atof(message);
     //Serial.print("Gamma : ");
     //Serial.println(gammaVal);
   }
-  if (strcmp(topic, "Medibox/tempmed") == 0) {
+  if (strcmp(topic, "Medibox220498D/tempmed") == 0) {
     tempmed = atof(message);
     //Serial.print("Temp Med : ");
     //Serial.println(tempmed);
@@ -138,20 +138,20 @@ void reconnect() {
     clientId += String(random(0xffff), HEX);  // Unique client ID
 
     // Attempt to connect with Last Will message
-    if (client.connect(clientId.c_str(), "Medibox/status", 0, true, "ESP32 Disconnected")) {
+    if (client.connect(clientId.c_str(), "Medibox220498D/status", 0, true, "ESP32 Disconnected")) {
       Serial.println("connected");
 
       // Publish initial online status
-      client.publish("Medibox/status", "ESP32 Connected to MQTT", true);
+      client.publish("Medibox220498D/status", "ESP32 Connected to MQTT", true);
 
       // Subscribe to relevant topics
-      client.subscribe("Medibox/temperature");
-      client.subscribe("Medibox/intensity");
-      client.subscribe("Medibox/intensitySampling");
-      client.subscribe("Medibox/intensitySending");
-      client.subscribe("Medibox/titaoffset");
-      client.subscribe("Medibox/controlFact");
-      client.subscribe("Medibox/tempmed");
+      client.subscribe("Medibox220498D/temperature");
+      client.subscribe("Medibox220498D/intensity");
+      client.subscribe("Medibox220498D/intensitySampling");
+      client.subscribe("Medibox220498D/intensitySending");
+      client.subscribe("Medibox220498D/titaoffset");
+      client.subscribe("Medibox220498D/controlFact");
+      client.subscribe("Medibox220498D/tempmed");
 
     } else {
       Serial.print("failed, rc=");
@@ -177,7 +177,7 @@ void check_temp(){
   //Complete
   TempAndHumidity data = dhtSensor.getTempAndHumidity();
   temp = data.temperature;
-  client.publish("Medibox/temperature", String(temp).c_str(), true);
+  client.publish("Medibox220498D/temperature", String(temp).c_str(), true);
   bool all_good = true;
   if(data.temperature>32){
     all_good = false;
@@ -666,7 +666,7 @@ void setup() {
 
   client.setServer(mqtt_server, 1883);  // Default MQTT port
   client.setCallback(callback);
-  client.publish("Medibox/intensity", String(0).c_str());
+  client.publish("Medibox220498D/intensity", String(0).c_str());
   servo.attach(SERVO);
   servo.write(tita);
 }
@@ -702,7 +702,7 @@ void check_intensity(){
     //display in NODE RED
     //Serial.println("Intensity Count: "+String(intensitycount));
     float avgIntensity = cumuIntensity/intensitycount;
-    client.publish("Medibox/intensity", String(avgIntensity,2).c_str());
+    client.publish("Medibox220498D/intensity", String(avgIntensity,2).c_str());
     intensitycount = 0;
     cumuIntensity = 0;
   }

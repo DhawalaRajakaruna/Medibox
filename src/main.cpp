@@ -716,17 +716,17 @@ void check_intensity(){
 }
 void control_servo(){
   //Complete
-  Serial.println("tita offset: "+String(titaoffset));
-  Serial.println("intensity: "+String(intensity));
-  Serial.println("temp: "+String(temp));
-  Serial.println("tempmed: "+String(tempmed));
-  Serial.println("gammaVal: "+String(gammaVal));
-  Serial.println("Ts: "+String(Ts));
-  Serial.println("Tu: "+String(Tu));
-  Serial.println("tita: "+String(tita));
+  // Serial.println("tita offset: "+String(titaoffset));
+  // Serial.println("intensity: "+String(intensity));
+  // Serial.println("temp: "+String(temp));
+  // Serial.println("tempmed: "+String(tempmed));
+  // Serial.println("gammaVal: "+String(gammaVal));
+  // Serial.println("Ts: "+String(Ts));
+  // Serial.println("Tu: "+String(Tu));
+  // Serial.println("tita: "+String(tita));
   int rawtita = titaoffset + (180 - titaoffset) *intensity*gammaVal*log(float(Ts)/float(Tu*60))*(float(temp)/float(tempmed));
   tita = constrain(rawtita, 0, 180);
-  Serial.println("Servo Position: "+String(tita));
+  Serial.println("Servo Position: "+String(rawtita));
   
   servo.attach(SERVO);
   servo.write(tita);

@@ -16,11 +16,11 @@ This project simulates an IoT-based medicine delivery reminder system that notif
   <tr>
     <td align="center">
       <strong>Wokwi Simulation</strong><br>
-      <img src="LINK_TO_IMAGE_1" width="300"/>
+      <img src="https://github.com/DhawalaRajakaruna/Medibox/blob/main/Screenshot%202025-06-03%20150858.png" width="500"/>
     </td>
     <td align="center">
       <strong>Node-RED Dashboard</strong><br>
-      <img src="LINK_TO_IMAGE_2" width="300"/>
+      <img src="https://github.com/DhawalaRajakaruna/Medibox/blob/main/Screenshot%202025-06-03%20151032.png" width="500"/>
     </td>
   </tr>
 </table>
